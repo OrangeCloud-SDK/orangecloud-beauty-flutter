@@ -1,0 +1,32 @@
+name: beauty_sdk
+description: A Flutter plugin for real-time beauty effects including face detection, skin smoothing, face deformation, and AR stickers.
+version: 1.0.0
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.1.0
+  crypto: ^3.0.3
+  path_provider: ^2.1.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^3.0.0
+  glados: ^1.0.0
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.orangecloud.beautysdk
+        pluginClass: BeautySdkPlugin
+      ios:
+        pluginClass: BeautySdkPlugin
+
+  assets:
+    - assets/i18n/
