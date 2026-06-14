@@ -1,0 +1,22 @@
+{
+  "errors": {
+    "4001": "服务已到期，请续费",
+    "4002": "应用已禁用",
+    "4003": "设备数已达上限",
+    "4004": "授权续验失败",
+    "4010": "AuthToken 验证失败",
+    "4011": "AuthToken 已过期",
+    "4012": "AuthToken 格式无效",
+    "4013": "AppId 无效",
+    "gpu_init_failed": "GPU 初始化失败",
+    "model_load_failed": "模型加载失败",
+    "invalid_params": "参数无效",
+    "session_ended": "会话已结束"
+  },
+  "filters": {
+    "smoothing": "磨皮",
+    "whitening": "美白",
+    "slim_face": "瘦脸",
+    "enlarge_eye": "大眼"
+  }
+}

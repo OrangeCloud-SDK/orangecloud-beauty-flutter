@@ -1,5 +1,6 @@
 import Flutter
 import UIKit
+import BeautySDK
 
 /// Flutter plugin for Beauty SDK - iOS platform channel bridge.
 ///
@@ -25,6 +26,20 @@ public class BeautySdkPlugin: NSObject, FlutterPlugin, FlutterTexture {
 
     /// Display link for frame processing
     private var displayLink: CADisplayLink?
+
+    /// 相机采集（驱动 processFrame 的帧源）
+    private var camera: CameraCapture?
+
+    /// 输出纹理缓存（把美颜输出 MTLTexture 渲染进可回填的 CVPixelBuffer）
+    private var outputTextureCache: CVMetalTextureCache?
+
+    /// 输出 CVPixelBuffer 池（按输出纹理尺寸懒建，尺寸变化时重建）
+    private var outputPool: CVPixelBufferPool?
+    private var outputPoolWidth = 0
+    private var outputPoolHeight = 0
+
+    /// 保护 currentPixelBuffer 读写（采集线程写、Flutter raster 线程读）
+    private let pixelBufferLock = NSLock()
 
     public static func register(with registrar: FlutterPluginRegistrar) {
         let channel = FlutterMethodChannel(
@@ -165,6 +180,8 @@ public class BeautySdkPlugin: NSObject, FlutterPlugin, FlutterTexture {
         do {
             let beautyPipeline = try BeautyPipeline()
             self.pipeline = beautyPipeline
+            // 自动加载随包分发的人脸检测模型（缺失时安全降级，不影响初始化）
+            beautyPipeline.loadBundledFaceDetectorModel()
         } catch {
             let errorMsg = "Metal pipeline initialization failed: \(error.localizedDescription)"
             result(FlutterError(code: "GPU_INIT_FAILED", message: errorMsg, details: nil))
@@ -177,6 +194,21 @@ public class BeautySdkPlugin: NSObject, FlutterPlugin, FlutterTexture {
         textureId = texId
         isInitialized = true
 
+        // 启动相机采集，驱动 processFrame。权限未授予时仍标记 ready，
+        // 但不会有帧产出（宿主需在 Info.plist 配置 NSCameraUsageDescription）。
+        CameraCapture.requestAuthorization { [weak self] granted in
+            guard let self = self else { return }
+            if granted {
+                let cam = CameraCapture()
+                cam.delegate = self
+                self.camera = cam
+                cam.start(position: .front)
+            } else {
+                self.emitError(code: "camera_permission_denied",
+                               message: "Camera permission not granted")
+            }
+        }
+
         // Emit state change
         emitState("ready")
 
@@ -188,6 +220,10 @@ public class BeautySdkPlugin: NSObject, FlutterPlugin, FlutterTexture {
         displayLink?.invalidate()
         displayLink = nil
 
+        // Stop camera capture
+        camera?.stop()
+        camera = nil
+
         // Dispose native pipeline
         pipeline?.dispose()
         pipeline = nil
@@ -197,7 +233,13 @@ public class BeautySdkPlugin: NSObject, FlutterPlugin, FlutterTexture {
             registry.unregisterTexture(texId)
         }
         textureId = nil
+        pixelBufferLock.lock()
         currentPixelBuffer = nil
+        pixelBufferLock.unlock()
+        outputTextureCache = nil
+        outputPool = nil
+        outputPoolWidth = 0
+        outputPoolHeight = 0
         isInitialized = false
 
         emitState("disposed")
@@ -539,15 +581,79 @@ public class BeautySdkPlugin: NSObject, FlutterPlugin, FlutterTexture {
         guard isInitialized, let beautyPipeline = pipeline else { return }
 
         // Process through: FaceDetector → BeautyFilter → FaceDeformer → StickerEngine
-        let outputTexture = beautyPipeline.processFrame(pixelBuffer, params: currentParams)
+        guard let outputTexture = beautyPipeline.processFrame(pixelBuffer, params: currentParams) else {
+            return
+        }
 
-        if outputTexture != nil {
-            // Update the pixel buffer for Flutter Texture widget rendering
-            currentPixelBuffer = pixelBuffer
+        // 把输出 MTLTexture 渲染进一个可回填的 CVPixelBuffer（Flutter Texture 只能读 CVPixelBuffer）。
+        let width = outputTexture.width
+        let height = outputTexture.height
+        ensureOutput(width: width, height: height, device: beautyPipeline.device)
 
-            // Notify Flutter that a new frame is available
-            if let texId = textureId, let registry = textureRegistry {
-                registry.textureFrameAvailable(texId)
+        guard let pool = outputPool, let cache = outputTextureCache else { return }
+
+        var outPB: CVPixelBuffer?
+        guard CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &outPB) == kCVReturnSuccess,
+              let dstBuffer = outPB else {
+            return
+        }
+
+        var cvTexture: CVMetalTexture?
+        let status = CVMetalTextureCacheCreateTextureFromImage(
+            kCFAllocatorDefault, cache, dstBuffer, nil,
+            .bgra8Unorm, width, height, 0, &cvTexture
+        )
+        guard status == kCVReturnSuccess,
+              let cvTex = cvTexture,
+              let dstTexture = CVMetalTextureGetTexture(cvTex) else {
+            return
+        }
+
+        // blit：outputTexture → dstTexture（由 dstBuffer 背书）
+        if let commandBuffer = beautyPipeline.commandQueue.makeCommandBuffer(),
+           let blit = commandBuffer.makeBlitCommandEncoder() {
+            blit.copy(
+                from: outputTexture,
+                sourceSlice: 0, sourceLevel: 0,
+                sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+                sourceSize: MTLSize(width: width, height: height, depth: 1),
+                to: dstTexture,
+                destinationSlice: 0, destinationLevel: 0,
+                destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0)
+            )
+            blit.endEncoding()
+            commandBuffer.commit()
+            commandBuffer.waitUntilCompleted()
+        }
+
+        pixelBufferLock.lock()
+        currentPixelBuffer = dstBuffer
+        pixelBufferLock.unlock()
+
+        // Notify Flutter that a new frame is available
+        if let texId = textureId, let registry = textureRegistry {
+            registry.textureFrameAvailable(texId)
+        }
+    }
+
+    /// 懒建输出 CVPixelBuffer 池与 Metal 纹理缓存；尺寸变化时重建池。
+    private func ensureOutput(width: Int, height: Int, device: MTLDevice) {
+        if outputTextureCache == nil {
+            CVMetalTextureCacheCreate(kCFAllocatorDefault, nil, device, nil, &outputTextureCache)
+        }
+        if outputPool == nil || outputPoolWidth != width || outputPoolHeight != height {
+            let attrs: [String: Any] = [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+                kCVPixelBufferWidthKey as String: width,
+                kCVPixelBufferHeightKey as String: height,
+                kCVPixelBufferMetalCompatibilityKey as String: true,
+                kCVPixelBufferIOSurfacePropertiesKey as String: [:]
+            ]
+            var pool: CVPixelBufferPool?
+            if CVPixelBufferPoolCreate(kCFAllocatorDefault, nil, attrs as CFDictionary, &pool) == kCVReturnSuccess {
+                outputPool = pool
+                outputPoolWidth = width
+                outputPoolHeight = height
             }
         }
     }
@@ -555,6 +661,8 @@ public class BeautySdkPlugin: NSObject, FlutterPlugin, FlutterTexture {
     // MARK: - FlutterTexture (Zero-Copy Rendering)
 
     public func copyPixelBuffer() -> Unmanaged<CVPixelBuffer>? {
+        pixelBufferLock.lock()
+        defer { pixelBufferLock.unlock() }
         guard let buffer = currentPixelBuffer else { return nil }
         return Unmanaged.passRetained(buffer)
     }
@@ -580,6 +688,15 @@ public class BeautySdkPlugin: NSObject, FlutterPlugin, FlutterTexture {
             "stageAvgMs": stageDict,
             "degradation": sample.degradation.rawValue
         ])
+    }
+}
+
+// MARK: - Camera Capture Delegate
+
+extension BeautySdkPlugin: CameraCaptureDelegate {
+    func cameraCapture(_ capture: CameraCapture, didOutput pixelBuffer: CVPixelBuffer) {
+        // 复用现有管线处理 + 输出回填逻辑
+        processFrame(pixelBuffer)
     }
 }
 

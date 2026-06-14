@@ -2,9 +2,11 @@ name: beauty_sdk
 description: A Flutter plugin for real-time beauty effects including face detection, skin smoothing, face deformation, and AR stickers.
 version: 1.0.0
 
+# 本插件 iOS 端依赖 Flutter Swift Package Manager（原生美颜引擎以 SwiftPM 分发）。
+# SwiftPM 自 Flutter 3.44 起为默认依赖管理方式，故要求 Flutter ≥ 3.44。
 environment:
-  sdk: '>=3.0.0 <4.0.0'
-  flutter: '>=3.0.0'
+  sdk: ^3.11.0
+  flutter: '>=3.44.0'
 
 dependencies:
   flutter:
@@ -23,7 +25,7 @@ flutter:
   plugin:
     platforms:
       android:
-        package: com.orangecloud.beautysdk
+        package: com.orangecloud.beautysdk.flutter
         pluginClass: BeautySdkPlugin
       ios:
         pluginClass: BeautySdkPlugin

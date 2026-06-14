@@ -1,0 +1,22 @@
+{
+  "errors": {
+    "4001": "서비스가 만료되었습니다. 갱신해 주세요",
+    "4002": "애플리케이션이 비활성화되었습니다",
+    "4003": "기기 수 한도에 도달했습니다",
+    "4004": "재인증에 실패했습니다",
+    "4010": "AuthToken 인증 실패",
+    "4011": "AuthToken이 만료되었습니다",
+    "4012": "AuthToken 형식이 잘못되었습니다",
+    "4013": "AppId가 유효하지 않습니다",
+    "gpu_init_failed": "GPU 초기화 실패",
+    "model_load_failed": "모델 로딩 실패",
+    "invalid_params": "잘못된 매개변수",
+    "session_ended": "세션이 종료되었습니다"
+  },
+  "filters": {
+    "smoothing": "피부 보정",
+    "whitening": "피부 미백",
+    "slim_face": "갸름한 얼굴",
+    "enlarge_eye": "눈 확대"
+  }
+}

@@ -1,5 +1,5 @@
 /// Beauty SDK 的 Flutter 公共入口。
-library beauty_sdk;
+library;
 
 export 'src/beauty_sdk_api.dart';
 export 'src/models/beauty_params.dart';

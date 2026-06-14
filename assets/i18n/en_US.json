@@ -1,0 +1,22 @@
+{
+  "errors": {
+    "4001": "Service expired, please renew",
+    "4002": "Application disabled",
+    "4003": "Device limit reached",
+    "4004": "Re-verification failed",
+    "4010": "AuthToken verification failed",
+    "4011": "AuthToken expired",
+    "4012": "Invalid AuthToken format",
+    "4013": "Invalid AppId",
+    "gpu_init_failed": "GPU initialization failed",
+    "model_load_failed": "Model loading failed",
+    "invalid_params": "Invalid parameters",
+    "session_ended": "Session has ended"
+  },
+  "filters": {
+    "smoothing": "Skin Smoothing",
+    "whitening": "Skin Whitening",
+    "slim_face": "Slim Face",
+    "enlarge_eye": "Enlarge Eyes"
+  }
+}

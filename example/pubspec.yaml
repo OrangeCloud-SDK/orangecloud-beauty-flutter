@@ -1,0 +1,23 @@
+name: beauty_sdk_example
+description: OrangeCloud Beauty SDK 示例：相机预览 + 实时美颜参数调节。
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ^3.11.0
+  flutter: '>=3.44.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  beauty_sdk:
+    path: ../
+  camera: ^0.11.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^3.0.0
+
+flutter:
+  uses-material-design: true

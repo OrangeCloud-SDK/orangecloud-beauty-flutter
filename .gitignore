@@ -1,0 +1,31 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# macOS
+.DS_Store
+
+# iOS / SwiftPM（插件 example 内）
+**/ios/Flutter/ephemeral/
+**/ios/Flutter/flutter_export_environment.sh
+**/.symlinks/
+**/Pods/
+**/*.xcuserstate
+**/xcuserdata/
+.build/
+Package.resolved
+
+# Android（example 内）
+**/android/.gradle/
+**/android/local.properties
+**/android/app/build/

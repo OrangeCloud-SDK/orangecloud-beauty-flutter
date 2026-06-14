@@ -1,0 +1,22 @@
+{
+  "errors": {
+    "4001": "Dịch vụ đã hết hạn, vui lòng gia hạn",
+    "4002": "Ứng dụng đã bị vô hiệu hóa",
+    "4003": "Đã đạt giới hạn số thiết bị",
+    "4004": "Xác minh lại thất bại",
+    "4010": "Xác minh AuthToken thất bại",
+    "4011": "AuthToken đã hết hạn",
+    "4012": "Định dạng AuthToken không hợp lệ",
+    "4013": "AppId không hợp lệ",
+    "gpu_init_failed": "Khởi tạo GPU thất bại",
+    "model_load_failed": "Tải mô hình thất bại",
+    "invalid_params": "Tham số không hợp lệ",
+    "session_ended": "Phiên đã kết thúc"
+  },
+  "filters": {
+    "smoothing": "Làm mịn da",
+    "whitening": "Làm trắng da",
+    "slim_face": "Thon gọn mặt",
+    "enlarge_eye": "Phóng to mắt"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "errors": {
+    "4001": "服務已到期，請續費",
+    "4002": "應用已停用",
+    "4003": "裝置數已達上限",
+    "4004": "授權續驗失敗",
+    "4010": "AuthToken 驗證失敗",
+    "4011": "AuthToken 已過期",
+    "4012": "AuthToken 格式無效",
+    "4013": "AppId 無效",
+    "gpu_init_failed": "GPU 初始化失敗",
+    "model_load_failed": "模型載入失敗",
+    "invalid_params": "參數無效",
+    "session_ended": "工作階段已結束"
+  },
+  "filters": {
+    "smoothing": "磨皮",
+    "whitening": "美白",
+    "slim_face": "瘦面",
+    "enlarge_eye": "大眼"
+  }
+}

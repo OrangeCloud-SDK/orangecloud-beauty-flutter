@@ -1,4 +1,4 @@
-package com.orangecloud.beautysdk
+package com.orangecloud.beautysdk.flutter
 
 import android.content.Context
 import android.graphics.SurfaceTexture
@@ -33,6 +33,10 @@ class BeautySdkPlugin : FlutterPlugin, MethodCallHandler {
 
     /// Native OpenGL ES rendering pipeline
     private var pipeline: BeautyPipeline? = null
+
+    /// 相机采集 + GL 渲染桥接（驱动 processFrame 并把输出回填到 Flutter Surface）
+    private var cameraBridge: CameraGLBridge? = null
+    private var outputSurface: Surface? = null
 
     /// Current beauty parameters
     private var currentParams = BeautyParams()
@@ -167,18 +171,35 @@ class BeautySdkPlugin : FlutterPlugin, MethodCallHandler {
             return
         }
 
-        // Initialize native BeautyPipeline (OpenGL ES)
+        // Initialize native BeautyPipeline (OpenGL ES).
+        // 注意：管线的 EGL/GL 初始化由 CameraGLBridge 在其 GL 线程上完成（传入共享 Context），
+        // 这里不调用 initialize()，避免在无 GL 线程的主线程上初始化。
         val beautyPipeline = BeautyPipeline(appContext)
-        if (!beautyPipeline.initialize()) {
-            result.error("GPU_INIT_FAILED", "OpenGL ES pipeline initialization failed", null)
-            emitError("gpu_init_failed", "OpenGL ES pipeline initialization failed")
-            return
-        }
         pipeline = beautyPipeline
 
         // Create SurfaceTexture entry for zero-copy rendering
         val entry = registry.createSurfaceTexture()
         textureEntry = entry
+        // 输出 Surface 尺寸需与渲染分辨率匹配
+        entry.surfaceTexture().setDefaultBufferSize(720, 1280)
+        val surface = Surface(entry.surfaceTexture())
+        outputSurface = surface
+
+        // 启动相机采集 + GL 渲染桥接（内部用共享 Context 初始化管线、驱动 processFrame、回填 Surface）
+        val bridge = CameraGLBridge(
+            context = appContext,
+            pipeline = beautyPipeline,
+            outputSurface = surface,
+            paramsProvider = { currentParams },
+            onError = { msg ->
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    emitError("gpu_init_failed", msg)
+                }
+            }
+        )
+        cameraBridge = bridge
+        bridge.start()
+
         isInitialized = true
 
         // Emit state change
@@ -462,9 +483,17 @@ class BeautySdkPlugin : FlutterPlugin, MethodCallHandler {
     }
 
     private fun dispose() {
+        // Stop camera + GL bridge first (releases pipeline GL resources on its thread)
+        cameraBridge?.stop()
+        cameraBridge = null
+
         // Dispose native pipeline
         pipeline?.dispose()
         pipeline = null
+
+        // Release output surface
+        outputSurface?.release()
+        outputSurface = null
 
         // Release texture entry
         textureEntry?.release()
